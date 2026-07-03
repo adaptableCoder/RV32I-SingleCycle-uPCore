@@ -7,7 +7,7 @@ module instruction_memory (
   assign instruction = rom[read_address[31:2]]; // last 2 bits dropped to divide by 4
 
   initial begin
-    $readmemh("program.hex", rom);
+    $readmemh("testbench/program.hex", rom);
   end
 endmodule
 

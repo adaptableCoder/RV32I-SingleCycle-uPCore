@@ -8,7 +8,7 @@ module register_file (
   output logic [31:0] read_data1,
   output logic [31:0] read_data2
 );
-  logic [31:0] registers [31:0]; // 32, 32-bit registers (2D array)
+  logic [31:0] registers [0:31]; // 32, 32-bit registers (2D array)
 
   assign read_data1 = (read_reg1 != 5'b0) ? registers[read_reg1] : 32'b0;
   assign read_data2 = (read_reg2 != 5'b0) ? registers[read_reg2] : 32'b0;

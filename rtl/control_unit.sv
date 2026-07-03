@@ -83,6 +83,7 @@ module control_unit (
       // JAL
       7'b1101111: begin
         Jump = 1'b1;
+        RegWrite = 1'b1;
       end
       
       // JALR

@@ -3,7 +3,7 @@ module rv32i_core(
   input reset
 );
   logic [31:0] instruction, offset, alu_result, read_address, immediate, data1, data2, data_mem_addr, pc, read_data;
-  logic [31:0] mux1, mux2, next_pc, write_data, operand1, operand2, mem_reg_mux;
+  logic [31:0] mux1, mux2, next_pc, write_data, operand1, operand2, mem_reg_mux, pc_plus_4;
 
   logic mem_read, mem_write, reg_write, pc_src, branch, jump, lui, mem_to_reg, alu_src1, alu_src2;
 
@@ -52,8 +52,8 @@ module rv32i_core(
     .read_data1(data1), 
     .read_data2(data2)
   );
-
-  assign write_data = lui ? immediate : mem_reg_mux;
+  assign pc_plus_4 = pc + 32'd4; // return address for jumps
+  assign write_data = jump ? pc_plus_4 : (lui ? immediate : mem_reg_mux);
 
   immediate_generator ImmGen(
     .instruction(instruction), 
@@ -85,6 +85,5 @@ module rv32i_core(
     .write_data(data2), 
     .read_data(read_data)
   );
-
   assign mem_reg_mux = mem_to_reg ? read_data : alu_result;
 endmodule

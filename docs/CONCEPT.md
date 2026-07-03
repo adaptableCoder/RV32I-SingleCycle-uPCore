@@ -70,10 +70,10 @@ assign operand2 = alu_src2 ? immediate : data2;
 The defining feature of a **Reduced** Instruction Set Computer (RISC) is how it decodes instructions, which heavily influenced the SystemVerilog design of this core.
 
 ### Hardwired Control (The RISC-V Way)
-Because every RISC-V instruction is exactly 32 bits long and the Opcode is always in the exact same location (bits `[6:0]`), the CPU does not have to "think" about how to read it. 
-In the SystemVerilog code, this is implemented as a massive `case(opcode)` block inside an `always_comb` module. 
-* **The Hardware Reality:** When synthesized, this `case` statement becomes a physical, hardwired web of AND/OR logic gates (a Decoder). 
-* **The Result:** The moment an instruction hits this decoder, electricity flows through the gates instantly, flipping all 11 multiplexer switches across the datapath in a single clock cycle. It is incredibly fast and takes up very little physical silicon.
+Because every RISC-V instruction is exactly 32 bits long and the Opcode is always in the exact same location (bits `[6:0]`), the instruction decoding logic is highly simplified. 
+In the SystemVerilog code, this is implemented as a combinational `case(opcode)` block inside an `always_comb` module. 
+* **The Hardware Reality:** When synthesized, this `case` statement becomes a physical, hardwired combinational logic decoder. 
+* **The Result:** When an instruction is decoded, signals propagate through the gates to configure the control lines and the 7 datapath multiplexers synchronously within a single clock cycle. By avoiding multi-cycle microcode lookup states, the design prioritizes hardware execution speed.
 
 ### Microcoded Control (The CISC Alternative)
 For contrast, Complex Instruction Set Computers (like Intel x86) have variable-length instructions (1 to 15 bytes long) where the opcodes constantly move around. 
@@ -92,7 +92,7 @@ However, because different operations need different types of data, the ISA defi
 | **R-Type** | Register | Uses 3 registers (`rs1`, `rs2`, `rd`). No immediate value. | `add rd, rs1, rs2` | Pure ALU math or logic between existing variables. |
 | **I-Type** | Immediate | Uses 2 registers (`rs1`, `rd`) and a 12-bit constant. | `addi rd, rs1, imm` | Math with constants, or loading data from memory (`lw`). |
 | **S-Type** | Store | Uses 2 registers (`rs1`, `rs2`) and a 12-bit constant. No `rd`. | `sw rs2, imm(rs1)` | Writing to memory. The Immediate is split into two chunks to keep `rs1` and `rs2` in standard positions. |
-| **B-Type** | Branch | Similar to S-Type, but the Immediate is scrambled. | `beq rs1, rs2, imm` | Conditional jumps (If/Else). The hardware scrambles the immediate bits to map directly to the PC Adder efficiently. |
+| **B-Type** | Branch | Similar to S-Type, but the Immediate is scrambled. | `beq rs1, rs2, imm` | Conditional jumps (If/Else). The assembler scrambles the immediate bits in the machine code. The hardware's Immediate Generator then unscrambles and stitches them to map to the PC Adder efficiently. |
 | **U-Type** | Upper Imm. | Uses 1 register (`rd`) and a massive 20-bit constant. | `lui rd, imm` | Loading large memory addresses or numbers that don't fit in 12 bits. |
 | **J-Type** | Jump | Uses 1 register (`rd`) and a scrambled 20-bit constant. | `jal rd, imm` | Unconditional jumps (Function calls). Saves the return address in `rd`. |
 
@@ -101,19 +101,19 @@ However, because different operations need different types of data, the ISA defi
 ## 7. The Supported Instruction Set
 Based on the hardwired Control Unit and ALU decoders built in this SystemVerilog implementation, this specific RV32I core can execute the following fundamental operations:
 
-### Arithmetic & Logical Operations (The "Math")
+### Arithmetic & Logical Operations
 Executed entirely within the Datapath using the ALU and Register File.
 * **`add` / `sub` (R-Type):** Standard addition and subtraction between two registers.
 * **`and` / `or` / `xor` (R-Type):** Bitwise logic operations used for masking and data manipulation.
 * **`sll` / `srl` / `sra` (R-Type):** Bit-shifting (Logical Left/Right, Arithmetic Right). This is how the hardware performs fast multiplication/division by powers of 2.
 * **`addi` / `andi` / `ori` (I-Type):** The immediate versions of the math above, adding a hardcoded constant to a register.
 
-### Memory Access (The "RAM")
+### Memory Access ("RAM")
 The only instructions permitted to talk to the Data Memory, utilizing the "Base + Offset" addressing method.
 * **`lw` (Load Word - I-Type):** Reads a 32-bit chunk of data from RAM and saves it into the Register File.
 * **`sw` (Store Word - S-Type):** Takes a 32-bit variable from the Register File and overwrites a specific address in RAM.
 
-### Control Flow (The "Decision Makers")
+### Control Flow ("Decision Makers")
 These instructions manipulate the Program Counter (PC) to break out of sequential execution, enabling loops and functions.
 * **`beq` / `bne` (Branch - B-Type):** "Branch if Equal" or "Branch if Not Equal". The ALU subtracts `rs1` from `rs2`. If the result is zero, the Branch flag triggers, and the PC jumps to the target address.
 * **`jal` (Jump and Link - J-Type):** Unconditionally jumps to a new PC address (useful for calling a function) and links (saves) the return address (`PC + 4`) into the Register File so the program knows how to get back.
@@ -122,3 +122,29 @@ These instructions manipulate the Program Counter (PC) to break out of sequentia
 ### Constant Manipulation
 * **`lui` (Load Upper Immediate - U-Type):** Forces a 20-bit constant directly into the top 20 bits of a register, filling the bottom 12 bits with zeros. Used alongside `addi` to build massive 32-bit constants.
 * **`auipc` (Add Upper Immediate to PC - U-Type):** Adds a 20-bit constant to the current Program Counter and saves the result in a register. Highly utilized in modern OS-level position-independent code.
+
+## 8. Control Unit Decoding Logic
+In a single-cycle RISC-V architecture, the Control Unit is implemented as purely combinational logic. It decodes the 7-bit `opcode` of the fetched instruction and generates a standardized set of 1-bit control signals. These signals govern the multiplexers, ALU operations, and read/write enables throughout the datapath.
+
+### Derivation of Control Signals
+Control signals are derived based on the specific data routing and operational requirements of each instruction format:
+
+* **Register Write (`RegWrite`):** Asserted (`1`) when an instruction writes a computed result or loaded data back to the Register File (e.g., `add`, `lw`, `jal`). Deasserted (`0`) for instructions that do not update destination registers (e.g., `sw`, `beq`).
+* **ALU Operand Selection (`ALUSrc1`, `ALUSrc2`):** `ALUSrc1` selects between the Program Counter (`PC`) and register `rs1`. `ALUSrc2` selects between register `rs2` and the sign-extended immediate value. These signals ensure the ALU receives the correct operands based on whether the instruction uses register data (R-type) or embedded constants (I-type/S-type).
+* **Data Memory Access (`MemRead`, `MemWrite`):** `MemRead` is asserted exclusively for load instructions (`lw`), while `MemWrite` is asserted exclusively for store instructions (`sw`). All other operations hold these signals at `0` to prevent unintended memory mutation.
+* **Program Counter Routing (`Branch`, `Jump`):** These signals control the multiplexers feeding the `PC` register, allowing the processor to break sequential execution for conditional loops (`beq`) or unconditional function calls (`jal`).
+
+### RV32I Core Truth Table
+The following truth table defines the control signal states for the foundational instructions implemented in this core. In theoretical textbook designs, unused signals are often marked as "Don't Care" (X). However, in this SystemVerilog implementation (`control_unit.sv`), all unassigned control signals explicitly default to `0` to prevent inferred latches.
+
+| Instruction Type | Opcode | RegWrite | ALUSrc1 | ALUSrc2 | MemWrite | MemRead | Branch | Jump | MemToReg |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **R-Type** (`add`) | `0110011` | **1** | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **I-Type** (`addi`) | `0010011` | **1** | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| **Load** (`lw`) | `0000011` | **1** | 0 | 1 | 0 | **1** | 0 | 0 | **1** |
+| **Store** (`sw`) | `0100011` | 0 | 0 | 1 | **1** | 0 | 0 | 0 | 0 |
+| **Branch** (`beq`) | `1100011` | 0 | 0 | 0 | 0 | 0 | **1** | 0 | 0 |
+| **Jump** (`jal`) | `1101111` | **1** | 0 | 0 | 0 | 0 | 0 | **1** | 0 |
+| **Upper** (`lui`) | `0110111` | **1** | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+> **Note on JAL Execution:** The `jal` instruction asserts `RegWrite` despite bypassing the ALU and Data Memory. This is necessary to store the return address (`PC + 4`) into the destination register (`rd`), maintaining proper linkage for function calls.

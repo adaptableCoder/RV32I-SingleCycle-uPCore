@@ -1,4 +1,4 @@
-module alu_contol_unit (
+module alu_control_unit (
   input logic [2:0] alu_op,         // From Main Control Unit
   input logic [2:0] func3,          // Inst[14:12]
   input logic bit30,                // Inst[30]
