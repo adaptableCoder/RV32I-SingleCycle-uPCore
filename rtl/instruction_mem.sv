@@ -6,9 +6,11 @@ module instruction_memory (
   
   assign instruction = rom[read_address[31:2]]; // last 2 bits dropped to divide by 4
 
+  //`ifndef SYNTHESIS // used for librelane, commented for simulation
   initial begin
     $readmemh("testbench/program.hex", rom);
   end
+  //`endif
 endmodule
 
 /* 

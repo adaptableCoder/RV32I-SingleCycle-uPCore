@@ -5,7 +5,13 @@ module program_counter (
   output logic [31:0] pc
 );
   always_ff @(posedge clk or posedge reset) begin
-    pc <= (reset) ? 32'b0 : next_pc;
+    // earlier ternary operator was used but failed it in librelane
+    if (reset) begin
+      pc <= 32'b0;
+    end else begin
+      pc <= next_pc;
+    end
+    // pc <= (reset) ? 32'b0 : next_pc;
   end
 endmodule
 
