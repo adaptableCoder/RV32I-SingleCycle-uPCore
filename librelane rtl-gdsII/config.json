@@ -1,0 +1,22 @@
+{
+    "DESIGN_NAME": "rv32i_core",
+    "VERILOG_FILES": [
+        "dir::src/alu_control_unit.sv",
+        "dir::src/alu.sv",
+        "dir::src/control_unit.sv",
+        "dir::src/data_memory.sv",
+        "dir::src/immediate_gen.sv",
+        "dir::src/instruction_mem.sv",
+        "dir::src/program_counter.sv",
+        "dir::src/register_file.sv",
+        "dir::src/rv32i_core.sv"
+    ],
+    "CLOCK_PORT": "clk",
+    "CLOCK_PERIOD": 50.0,
+    "FP_CORE_UTIL": 40,
+    "FP_PDN_MULTILAYER": true,
+    "SYNTH_DEFINES": ["SYNTH_USE_PG_PINS_DEFINES=1"],
+    "DESIGN_IS_CORE": true,
+    "FP_PDN_CORE_RING": true,
+    "PDN_CORE_RING": true
+}
